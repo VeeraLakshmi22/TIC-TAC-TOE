@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Advanced Tic Tac Toe</title>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            background: #e0f7fa;
+            min-height: 100vh;
+            margin: 0;
+            overflow: hidden;
+            position: relative;
+        }
+
+        h1 {
+            margin-bottom: 30px;
+            font-size: 4em;
+            color: #00838f;
+            text-shadow: 2px 2px #b2ebf2;
+        }
+
+        button {
+            margin-top: 15px;
+            padding: 10px 25px;
+            font-size: 1.1em;
+            cursor: pointer;
+            background-color: #4dd0e1;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            box-shadow: 1px 1px 3px #999;
+            transition: background-color 0.3s ease;
+        }
+
+        button:hover {
+            background-color: #26c6da;
+        }
+
+        .mode-buttons {
+            margin-top: 25px;
+            display: flex;
+            gap: 10px;
+        }
+
+        .mode-buttons button {
+            padding: 12px 30px;
+        }
+
+        .board {
+            display: grid;
+            grid-template-columns: repeat(3, 100px);
+            grid-template-rows: repeat(3, 100px);
+            gap: 8px;
+            margin-top: 30px;
+        }
+
+        .cell {
+            background-color: #fff;
+            border: 2px solid #80cbc4;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2.2em;
+            cursor: pointer;
+            user-select: none;
+            transition: background-color 0.3s ease;
+        }
+
+        .cell:hover {
+            background-color: #e0f2f1;
+        }
+
+        .cell.winner {
+            background-color: #a5d6a7;
+        }
+
+        #status, #score {
+            margin-top: 25px;
+            font-size: 1.3em;
+            color: #2e7d32;
+        }
+
+        .score-container {
+            display: flex;
+            justify-content: space-between;
+            width: 350px;
+            color: #1976d2;
+        }
+
+        #result-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-top: 30px;
+            position: relative;
+            z-index: 10;
+        }
+
+        #result-container h2 {
+            font-size: 2.5em;
+            margin-bottom: 15px;
+            color: #d32f2f;
+            text-align: center;
+        }
+
+        #result-container button {
+            margin: 10px;
+            padding: 10px 20px;
+        }
+
+        .hide {
+            display: none;
+        }
+
+        #confetti-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 100;
+            display: none;
+        }
+
+        .confetti {
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            background-color: #f00;
+            border-radius: 50%;
+            opacity: 0.8;
+        }
+    </style>
+</head>
+<body>
+    <h1>🎮 Tic Tac Toe</h1>
+    <button onclick="startGame()">Start Game</button>
+
+    <div class="mode-buttons hide">
+        <button onclick="setMode('AI')">Play vs AI</button>
+        <button onclick="setMode('Friend')">Play with Friend</button>
+    </div>
+
+    <div class="board hide" id="board"></div>
+
+    <div id="status" class="hide"></div>
+
+    <div class="score-container hide" id="score">
+        <div id="score-x">Player X: 0</div>
+        <div id="score-o">Player O: 0</div>
+    </div>
+
+    <div class="hide" id="result-container">
+        <h2 id="result"></h2>
+        <button onclick="restartGame()">🔁 Restart</button>
+        <button onclick="exitGame()">Exit</button>
+    </div>
+
+    <div id="confetti-container"></div>
+
+    <audio id="sound start" src="audio/sound start.mp3"></audio>
+    <audio id="sound win" src="audio/sound win.mp3"></audio>
+    <audio id="sound draw" src="audio/sound draw.mp3"></audio>
+    <audio id="sound restart" src="audio/sound restart.mp3"></audio>
+    <audio id="sound select" src="audio/sound select.mp3"></audio>
+
+    <script>
+        const boardElem = document.getElementById("board");
+        const statusElem = document.getElementById("status");
+        const scoreElem = document.getElementById("score");
+        const resultContainer = document.getElementById("result-container");
+        const resultText = document.getElementById("result");
+        const scoreXElem = document.getElementById("score-x");
+        const scoreOElem = document.getElementById("score-o");
+        const startGameButton = document.querySelector("button");
+        const modeButtonsDiv = document.querySelector(".mode-buttons");
+        const confettiContainer = document.getElementById("confetti-container");
+        const startSound = document.getElementById("sound start");
+        const winSound = document.getElementById("sound win");
+        const drawSound = document.getElementById("sound draw");
+        const restartSound = document.getElementById("sound restart");
+        const selectSound = document.getElementById("sound select");
+
+        document.addEventListener('DOMContentLoaded', function() {
+            resultContainer.style.display = 'none';
+            scoreElem.style.display = 'none';
+            modeButtonsDiv.classList.add('hide');
+            boardElem.classList.add('hide');
+            statusElem.classList.add('hide');
+            confettiContainer.style.display = 'none';
+        });
+
+        let board = Array(9).fill(null);
+        let currentPlayer = "X";
+        let mode = null;
+        let gameOver = false;
+        let score = { X: 0, O: 0, Draws: 0 };
+        let timer;
+        let turnTime = 10;
+        let timerInterval;
+
+        // Confetti colors
+        const colors = [
+            '#f44336', '#e91e63', '#9c27b0', '#673ab7',
+            '#3f51b5', '#2196f3', '#03a9f4', '#00bcd4',
+            '#009688', '#4caf50', '#8bc34a', '#cddc39',
+            '#ffeb3b', '#ffc107', '#ff9800', '#ff5722'
+        ];
+
+        function startGame() {
+            startSound.play();
+            startGameButton.style.display = 'none';
+            modeButtonsDiv.classList.remove('hide');
+        }
+
+        function setMode(selectedMode) {
+            mode = selectedMode;
+            selectSound.play();
+            modeButtonsDiv.classList.add('hide');
+            scoreElem.style.display = 'flex';
+            boardElem.classList.remove('hide');
+            createBoard();
+            statusElem.classList.remove('hide');
+
+            if (mode === "AI") {
+                scoreXElem.textContent = "You: 0";
+                scoreOElem.textContent = "AI: 0";
+            } else {
+                scoreXElem.textContent = "Player X: 0";
+                scoreOElem.textContent = "Player O: 0";
+            }
+        }
+
+        function createBoard() {
+            boardElem.innerHTML = "";
+            board = Array(9).fill(null);
+            gameOver = false;
+            resultContainer.style.display = 'none';
+            confettiContainer.style.display = 'none';
+            confettiContainer.innerHTML = '';
+
+            for (let i = 0; i < 9; i++) {
+                const cell = document.createElement("div");
+                cell.classList.add("cell");
+                cell.dataset.index = i;
+                cell.addEventListener("click", handleCellClick);
+                boardElem.appendChild(cell);
+            }
+
+            updateStatus();
+            startTurnTimer();
+        }
+
+        function handleCellClick(e) {
+            const index = e.target.dataset.index;
+            if (board[index] || gameOver) return;
+
+            makeMove(index, currentPlayer);
+
+            const winner = checkWinner(board);
+            if (winner) endGame(winner);
+            else if (board.every(cell => cell)) endGame("Draw");
+            else if (mode === "AI" && currentPlayer === "O") {
+                setTimeout(() => {
+                    getBestMove();
+                }, 300);
+            }
+        }
+
+        function makeMove(index, player) {
+            board[index] = player;
+            boardElem.children[index].textContent = player;
+            selectSound.play();
+            currentPlayer = player === "X" ? "O" : "X";
+            updateStatus();
+            resetTurnTimer();
+        }
+
+        function updateStatus() {
+            if (!mode) {
+                statusElem.textContent = "Choose a mode to start the game";
+            } else if (!gameOver) {
+                statusElem.textContent = `Current Turn: ${currentPlayer}`;
+            }
+        }
+
+        function checkWinner(b) {
+            const winPatterns = [
+                [0,1,2], [3,4,5], [6,7,8],
+                [0,3,6], [1,4,7], [2,5,8],
+                [0,4,8], [2,4,6]
+            ];
+            for (const [a, b1, c] of winPatterns) {
+                if (b[a] && b[a] === b[b1] && b[a] === b[c]) {
+                    highlightWinner([a, b1, c]);
+                    return b[a];
+                }
+            }
+            return null;
+        }
+
+        function highlightWinner(indices) {
+            indices.forEach(i => {
+                boardElem.children[i].classList.add("winner");
+            });
+        }
+
+        function createConfetti() {
+            confettiContainer.style.display = 'block';
+            confettiContainer.innerHTML = '';
+
+            for (let i = 0; i < 150; i++) {
+                const confetti = document.createElement('div');
+                confetti.classList.add('confetti');
+
+                // Random properties
+                const color = colors[Math.floor(Math.random() * colors.length)];
+                const size = Math.random() * 10 + 5;
+                const left = Math.random() * 100;
+                const duration = Math.random() * 3 + 2;
+                const delay = Math.random() * 2;
+
+                confetti.style.backgroundColor = color;
+                confetti.style.width = `${size}px`;
+                confetti.style.height = `${size}px`;
+                confetti.style.left = `${left}%`;
+                confetti.style.animation = `fall ${duration}s linear ${delay}s infinite`;
+
+                confettiContainer.appendChild(confetti);
+            }
+        }
+
+        function endGame(result) {
+            gameOver = true;
+            boardElem.classList.add('hide');
+            resultContainer.style.display = 'flex';
+
+            if (result === "Draw") {
+                resultText.textContent = "It's a Draw!";
+                drawSound.play();
+                score.Draws++;
+            } else {
+                let winnerText = "";
+                if (mode === "AI") {
+                    if (result === "X") {
+                        winnerText = "You Win!";
+                    } else if (result === "O") {
+                        winnerText = "AI Wins!";
+                    }
+                } else if (mode === "Friend") {
+                    if (result === "X") {
+                        winnerText = "Player X Wins!";
+                    } else if (result === "O") {
+                        winnerText = "Player O Wins!";
+                    }
+                }
+                resultText.textContent = winnerText + "!";
+                winSound.play();
+                createConfetti();
+                score[result]++;
+            }
+            updateScore();
+            statusElem.classList.add('hide');
+        }
+
+        function updateScore() {
+            scoreXElem.textContent = mode === "AI" ? "You: " + score.X : "Player X: " + score.X;
+            scoreOElem.textContent = mode === "AI" ? "AI: " + score.O : "Player O: " + score.O;
+        }
+
+        function restartGame() {
+            restartSound.play();
+            resultContainer.style.display = 'none';
+            modeButtonsDiv.classList.remove('hide');
+            scoreElem.style.display = 'none';
+            boardElem.classList.add('hide');
+            mode = null;
+            board = Array(9).fill(null);
+            currentPlayer = "X";
+            gameOver = false;
+            clearInterval(timerInterval);
+            statusElem.classList.add('hide');
+            statusElem.textContent = "";
+            confettiContainer.style.display = 'none';
+            confettiContainer.innerHTML = '';
+        }
+
+        function exitGame() {
+            window.close();
+        }
+
+        function getBestMove() {
+            console.log("Getting best move...");
+            const best = minimax(board, "O");
+            console.log("Best move:", best);
+            if (best && typeof best.index !== 'undefined') {
+                makeMove(best.index, "O");
+            } else {
+                console.warn("AI returned an invalid move.");
+            }
+        }
+
+        function minimax(newBoard, player) {
+            console.log("Minimax called for player:", player, "Board:", [...newBoard]);
+
+            const availSpots = newBoard
+                .map((val, idx) => (val === null ? idx : null))
+                .filter(val => val !== null);
+
+            const winner = checkWinner(newBoard);
+            if (winner === "X") {
+                console.log("Minimax - X wins, returning -10");
+                return { score: -10 };
+            }
+            if (winner === "O") {
+                console.log("Minimax - O wins, returning 10");
+                return { score: 10 };
+            }
+            if (availSpots.length === 0) {
+                console.log("Minimax - Draw, returning 0");
+                return { score: 0 };
+            }
+
+            const moves = [];
+            for (let i = 0; i < availSpots.length; i++) {
+                const move = {};
+                move.index = availSpots[i];
+                newBoard[availSpots[i]] = player;
+                console.log("Minimax - Trying move:", availSpots[i], "as", player);
+
+                const result = minimax(newBoard, player === "O" ? "X" : "O");
+                move.score = result.score;
+                console.log("Minimax - Result for move", availSpots[i], ":", result);
+
+                newBoard[availSpots[i]] = null;
+                moves.push(move);
+            }
+
+            let bestMove;
+            if (player === "O") {
+                let bestScore = -Infinity;
+                for (let i = 0; i < moves.length; i++) {
+                    if (moves[i].score > bestScore) {
+                        bestScore = moves[i].score;
+                        bestMove = i;
+                    }
+                }
+                console.log("Minimax - O's best move:", moves[bestMove]);
+            } else {
+                let bestScore = Infinity;
+                for (let i = 0; i < moves.length; i++) {
+                    if (moves[i].score < bestScore) {
+                        bestScore = moves[i].score;
+                        bestMove = i;
+                    }
+                }
+                console.log("Minimax - X's best move:", moves[bestMove]);
+            }
+
+            return moves[bestMove];
+        }
+
+        function startTurnTimer() {
+            timer = turnTime;
+            timerInterval = setInterval(() => {
+                if (timer > 0 && !gameOver) {
+                    timer--;
+                } else if (timer === 0) {
+                    switchTurn();
+                }
+            }, 1000);
+        }
+
+        function resetTurnTimer() {
+            clearInterval(timerInterval);
+            startTurnTimer();
+        }
+
+        function switchTurn() {
+            currentPlayer = currentPlayer === "X" ? "O" : "X";
+            updateStatus();
+            if (mode === "AI" && currentPlayer === "O" && !gameOver) {
+                setTimeout(() => {
+                    getBestMove();
+                }, 300);
+            }
+        }
+
+        // Add CSS animation for confetti
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes fall {
+                0% {
+                    transform: translateY(-100vh) rotate(0deg);
+                    opacity: 1;
+                }
+                100% {
+                    transform: translateY(100vh) rotate(360deg);
+                    opacity: 0;
+                }
+            }
+        `;
+        document.head.appendChild(style);
+    </script>
+</body>
+</html>
